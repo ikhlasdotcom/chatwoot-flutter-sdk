@@ -109,7 +109,7 @@ void main() {
       //GIVEN
       final responseBody =
           await TestResourceUtil.readJsonResource(fileName: "conversation");
-      when(mockDio.post(any)).thenAnswer(
+      when(mockDio.post(any, data: null)).thenAnswer(
           (_) => Future.value(_createSuccessResponse(responseBody)));
 
       //WHEN
@@ -124,7 +124,7 @@ void main() {
         'Given conversation creation returns with error response when createNewConversation is called, then throw error',
         () async {
       //GIVEN
-      when(mockDio.post(any)).thenAnswer(
+      when(mockDio.post(any, data: null)).thenAnswer(
           (_) => Future.value(_createErrorResponse(statusCode: 401, body: {})));
 
       //WHEN
@@ -147,7 +147,7 @@ void main() {
         () async {
       //GIVEN
       final testError = DioException(requestOptions: RequestOptions(path: ""));
-      when(mockDio.post(any)).thenThrow(testError);
+      when(mockDio.post(any, data: null)).thenThrow(testError);
 
       //WHEN
       ChatwootClientException? chatwootClientException;

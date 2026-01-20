@@ -34,6 +34,25 @@ class ChatwootWidget extends StatefulWidget {
 
   ///Widget Load completed event
   final void Function()? onLoadCompleted;
+
+  /// If true, clears any stored conversation token before loading (forces a fresh conversation).
+  final bool resetConversation;
+
+  /// If provided, forces the widget to open the given conversation token instead of the last stored one.
+  final String? conversationToken;
+
+  /// If false, the widget will not persist the conversation token after load.
+  final bool persistConversationToken;
+
+  /// Callback when widget reports the current conversation auth token (from loaded event).
+  final void Function(String authToken)? onAuthToken;
+
+  /// Callback when conversation is loaded, providing auth token and conversation ID.
+  final void Function(String authToken, int? conversationId)?
+      onConversationLoaded;
+
+  /// Conversation-level custom attributes to set on load.
+  final dynamic conversationCustomAttributes;
   ChatwootWidget(
       {Key? key,
       required this.websiteToken,
@@ -41,11 +60,17 @@ class ChatwootWidget extends StatefulWidget {
       this.user,
       this.locale = "en",
       this.customAttributes,
+      this.conversationCustomAttributes,
       this.closeWidget,
       this.onAttachFile,
       this.onLoadStarted,
       this.onLoadProgress,
-      this.onLoadCompleted})
+      this.onLoadCompleted,
+      this.resetConversation = false,
+      this.conversationToken,
+      this.persistConversationToken = true,
+      this.onAuthToken,
+      this.onConversationLoaded})
       : super(key: key);
 
   @override
@@ -66,7 +91,13 @@ class _ChatwootWidgetState extends State<ChatwootWidget> {
       user: widget.user,
       locale: widget.locale,
       customAttributes: widget.customAttributes,
+      conversationCustomAttributes: widget.conversationCustomAttributes,
       closeWidget: widget.closeWidget,
+      resetConversation: widget.resetConversation,
+      conversationToken: widget.conversationToken,
+      persistConversationToken: widget.persistConversationToken,
+      onAuthToken: widget.onAuthToken,
+      onConversationLoaded: widget.onConversationLoaded,
       onAttachFile: widget.onAttachFile,
       onLoadStarted: widget.onLoadStarted,
       onLoadCompleted: widget.onLoadCompleted,

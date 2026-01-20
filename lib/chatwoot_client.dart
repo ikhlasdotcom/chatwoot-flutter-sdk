@@ -89,6 +89,9 @@ class ChatwootClient {
       {required String baseUrl,
       required String inboxIdentifier,
       ChatwootUser? user,
+      int? conversationId,
+      String? conversationContext,
+      Map<String, dynamic>? conversationCustomAttributes,
       bool enablePersistence = true,
       ChatwootCallbacks? callbacks}) async {
     if (enablePersistence) {
@@ -99,11 +102,16 @@ class ChatwootClient {
         clientInstanceKey: getClientInstanceKey(
             baseUrl: baseUrl,
             inboxIdentifier: inboxIdentifier,
-            userIdentifier: user?.identifier),
+            userIdentifier: user?.identifier,
+            conversationContext: conversationContext,
+            conversationId: conversationId),
         isPersistenceEnabled: enablePersistence,
         baseUrl: baseUrl,
         inboxIdentifier: inboxIdentifier,
-        userIdentifier: user?.identifier);
+        userIdentifier: user?.identifier,
+        conversationId: conversationId,
+        conversationContext: conversationContext,
+        conversationCustomAttributes: conversationCustomAttributes);
 
     final client =
         ChatwootClient._(chatwootParams, callbacks: callbacks, user: user);
@@ -124,8 +132,11 @@ class ChatwootClient {
   static String getClientInstanceKey(
       {required String baseUrl,
       required String inboxIdentifier,
-      String? userIdentifier}) {
-    return "$baseUrl$_keySeparator$userIdentifier$_keySeparator$inboxIdentifier";
+      String? userIdentifier,
+      String? conversationContext,
+      int? conversationId}) {
+    final conversationKey = conversationContext ?? conversationId?.toString();
+    return "$baseUrl$_keySeparator$userIdentifier$_keySeparator$inboxIdentifier$_keySeparator${conversationKey ?? ''}";
   }
 
   static Map<String, ProviderContainer> providerContainerMap = Map();
@@ -135,11 +146,15 @@ class ChatwootClient {
   static Future<void> clearData(
       {required String baseUrl,
       required String inboxIdentifier,
-      String? userIdentifier}) async {
+      String? userIdentifier,
+      int? conversationId,
+      String? conversationContext}) async {
     final clientInstanceKey = getClientInstanceKey(
         baseUrl: baseUrl,
         inboxIdentifier: inboxIdentifier,
-        userIdentifier: userIdentifier);
+        userIdentifier: userIdentifier,
+        conversationId: conversationId,
+        conversationContext: conversationContext);
     providerContainerMap.putIfAbsent(
         clientInstanceKey, () => ProviderContainer());
     final container = providerContainerMap[clientInstanceKey]!;

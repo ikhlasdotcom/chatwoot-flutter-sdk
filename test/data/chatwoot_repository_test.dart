@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:chatwoot_sdk/chatwoot_callbacks.dart';
+import 'package:chatwoot_sdk/chatwoot_parameters.dart';
 import 'package:chatwoot_sdk/data/chatwoot_repository.dart';
 import 'package:chatwoot_sdk/data/local/entity/chatwoot_contact.dart';
 import 'package:chatwoot_sdk/data/local/entity/chatwoot_conversation.dart';
@@ -47,6 +48,12 @@ void main() {
     StreamController mockWebSocketStream = StreamController.broadcast();
     final mockWebSocketChannel = MockWebSocketChannel();
 
+    final testParams = ChatwootParameters(
+        isPersistenceEnabled: true,
+        baseUrl: "https://example.com",
+        inboxIdentifier: "testInbox",
+        clientInstanceKey: "test-key");
+
     late final ChatwootRepository repo;
 
     setUpAll(() async {
@@ -69,6 +76,7 @@ void main() {
           .thenAnswer((_) => () {});
 
       repo = ChatwootRepositoryImpl(
+          params: testParams,
           clientService: mockChatwootClientService,
           localStorage: mockLocalStorage,
           streamCallbacks: mockChatwootCallbacks);

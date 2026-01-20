@@ -3,6 +3,7 @@ import 'package:chatwoot_sdk/data/local/entity/chatwoot_conversation.dart';
 import 'package:chatwoot_sdk/data/local/entity/chatwoot_user.dart';
 import 'package:chatwoot_sdk/data/remote/service/chatwoot_client_api_interceptor.dart';
 import 'package:chatwoot_sdk/data/remote/service/chatwoot_client_auth_service.dart';
+import 'package:chatwoot_sdk/chatwoot_parameters.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
@@ -48,6 +49,7 @@ void main() {
     late final testContact;
 
     late final testConversation;
+    late final ChatwootParameters testParams;
 
     final testUser = ChatwootUser(
         identifier: "identifier",
@@ -66,8 +68,13 @@ void main() {
           await TestResourceUtil.readJsonResource(fileName: "contact"));
       testConversation = ChatwootConversation.fromJson(
           await TestResourceUtil.readJsonResource(fileName: "conversation"));
+      testParams = ChatwootParameters(
+          isPersistenceEnabled: true,
+          baseUrl: "https://example.com",
+          inboxIdentifier: testInboxIdentifier,
+          clientInstanceKey: "test-key");
       interceptor = ChatwootClientApiInterceptor(
-          testInboxIdentifier, mockLocalStorage, mockAuthService);
+          testParams, mockLocalStorage, mockAuthService);
     });
 
     tearDown(() {
@@ -102,7 +109,8 @@ void main() {
       when(mockUserDao.getUser()).thenReturn(testUser);
       when(mockAuthService.createNewContact(any, any))
           .thenAnswer((_) => Future.value(testContact));
-      when(mockAuthService.createNewConversation(any, any))
+      when(mockAuthService.createNewConversation(any, any,
+              customAttributes: anyNamed('customAttributes')))
           .thenAnswer((_) => Future.value(testConversation));
 
       //WHEN
@@ -111,7 +119,8 @@ void main() {
       //THEN
       verify(mockAuthService.createNewContact(testInboxIdentifier, testUser));
       verify(mockAuthService.createNewConversation(
-          testInboxIdentifier, testContact.contactIdentifier));
+          testInboxIdentifier, testContact.contactIdentifier,
+          customAttributes: testParams.conversationCustomAttributes));
       verify(mockContactDao.saveContact(testContact));
       verify(mockConversationDao.saveConversation(testConversation));
       verify(mockRequestHandler.next(any));
@@ -125,7 +134,8 @@ void main() {
 
       when(mockContactDao.getContact()).thenReturn(testContact);
       when(mockConversationDao.getConversation()).thenReturn(null);
-      when(mockAuthService.createNewConversation(any, any))
+      when(mockAuthService.createNewConversation(any, any,
+              customAttributes: anyNamed('customAttributes')))
           .thenAnswer((_) => Future.value(testConversation));
 
       //WHEN
@@ -133,7 +143,8 @@ void main() {
 
       //THEN
       verify(mockAuthService.createNewConversation(
-          testInboxIdentifier, testContact.contactIdentifier));
+          testInboxIdentifier, testContact.contactIdentifier,
+          customAttributes: testParams.conversationCustomAttributes));
       verify(mockConversationDao.saveConversation(testConversation));
       verify(mockRequestHandler.next(any));
     });
@@ -208,7 +219,8 @@ void main() {
       when(mockUserDao.getUser()).thenReturn(testUser);
       when(mockAuthService.createNewContact(any, any))
           .thenAnswer((_) => Future.value(testContact));
-      when(mockAuthService.createNewConversation(any, any))
+      when(mockAuthService.createNewConversation(any, any,
+              customAttributes: anyNamed('customAttributes')))
           .thenAnswer((_) => Future.value(testConversation));
 
       //WHEN
@@ -231,7 +243,8 @@ void main() {
 
       //THEN
       verify(mockResponseHandler.next(any));
-      verifyNever(mockAuthService.createNewConversation(any, any));
+      verifyNever(mockAuthService.createNewConversation(any, any,
+          customAttributes: anyNamed('customAttributes')));
       verifyNever(mockContactDao.saveContact(any));
       verifyNever(mockConversationDao.saveConversation(any));
     });
@@ -248,7 +261,8 @@ void main() {
       //THEN
       verify(mockResponseHandler.next(any));
       verifyNever(mockAuthService.createNewContact(any, any));
-      verifyNever(mockAuthService.createNewConversation(any, any));
+      verifyNever(mockAuthService.createNewConversation(any, any,
+          customAttributes: anyNamed('customAttributes')));
       verifyNever(mockContactDao.saveContact(any));
       verifyNever(mockConversationDao.saveConversation(any));
     });

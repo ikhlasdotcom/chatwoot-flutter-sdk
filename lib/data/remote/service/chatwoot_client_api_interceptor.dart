@@ -2,6 +2,7 @@ import 'package:chatwoot_sdk/data/local/entity/chatwoot_contact.dart';
 import 'package:chatwoot_sdk/data/local/entity/chatwoot_conversation.dart';
 import 'package:chatwoot_sdk/data/local/local_storage.dart';
 import 'package:chatwoot_sdk/data/remote/service/chatwoot_client_auth_service.dart';
+import 'package:chatwoot_sdk/chatwoot_parameters.dart';
 import 'package:dio/dio.dart';
 import 'package:synchronized/synchronized.dart' as synchronized;
 
@@ -13,14 +14,14 @@ class ChatwootClientApiInterceptor extends Interceptor {
   static const INTERCEPTOR_CONVERSATION_IDENTIFIER_PLACEHOLDER =
       "{CONVERSATION_IDENTIFIER}";
 
-  final String _inboxIdentifier;
+  final ChatwootParameters _params;
   final LocalStorage _localStorage;
   final ChatwootClientAuthService _authService;
   final requestLock = synchronized.Lock();
   final responseLock = synchronized.Lock();
 
   ChatwootClientApiInterceptor(
-      this._inboxIdentifier, this._localStorage, this._authService);
+      this._params, this._localStorage, this._authService);
 
   /// Creates a new contact and conversation when no persisted contact is found when an api call is made
   @override
@@ -35,21 +36,33 @@ class ChatwootClientApiInterceptor extends Interceptor {
       if (contact == null) {
         // create new contact from user if no token found
         contact = await _authService.createNewContact(
-            _inboxIdentifier, _localStorage.userDao.getUser());
+            _params.inboxIdentifier, _localStorage.userDao.getUser());
         conversation = await _authService.createNewConversation(
-            _inboxIdentifier, contact.contactIdentifier!);
+            _params.inboxIdentifier, contact.contactIdentifier!,
+            customAttributes: _params.conversationCustomAttributes);
         await _localStorage.conversationDao.saveConversation(conversation);
         await _localStorage.contactDao.saveContact(contact);
       }
 
+      if (_params.conversationId != null &&
+          (conversation == null || conversation.id != _params.conversationId)) {
+        conversation = ChatwootConversation(
+            id: _params.conversationId!,
+            inboxId: conversation?.inboxId ?? 0,
+            messages: conversation?.messages ?? [],
+            contact: contact);
+        await _localStorage.conversationDao.saveConversation(conversation);
+      }
+
       if (conversation == null) {
         conversation = await _authService.createNewConversation(
-            _inboxIdentifier, contact.contactIdentifier!);
+            _params.inboxIdentifier, contact.contactIdentifier!,
+            customAttributes: _params.conversationCustomAttributes);
         await _localStorage.conversationDao.saveConversation(conversation);
       }
 
       newOptions.path = newOptions.path.replaceAll(
-          INTERCEPTOR_INBOX_IDENTIFIER_PLACEHOLDER, _inboxIdentifier);
+          INTERCEPTOR_INBOX_IDENTIFIER_PLACEHOLDER, _params.inboxIdentifier);
       newOptions.path = newOptions.path.replaceAll(
           INTERCEPTOR_CONTACT_IDENTIFIER_PLACEHOLDER,
           contact.contactIdentifier!);
@@ -75,14 +88,15 @@ class ChatwootClientApiInterceptor extends Interceptor {
         // create new contact from user if unauthorized,forbidden or not found
         final contact = _localStorage.contactDao.getContact()!;
         final conversation = await _authService.createNewConversation(
-            _inboxIdentifier, contact.contactIdentifier!);
+            _params.inboxIdentifier, contact.contactIdentifier!,
+            customAttributes: _params.conversationCustomAttributes);
         await _localStorage.contactDao.saveContact(contact);
         await _localStorage.conversationDao.saveConversation(conversation);
 
         RequestOptions newOptions = response.requestOptions;
 
         newOptions.path = newOptions.path.replaceAll(
-            INTERCEPTOR_INBOX_IDENTIFIER_PLACEHOLDER, _inboxIdentifier);
+            INTERCEPTOR_INBOX_IDENTIFIER_PLACEHOLDER, _params.inboxIdentifier);
         newOptions.path = newOptions.path.replaceAll(
             INTERCEPTOR_CONTACT_IDENTIFIER_PLACEHOLDER,
             contact.contactIdentifier!);

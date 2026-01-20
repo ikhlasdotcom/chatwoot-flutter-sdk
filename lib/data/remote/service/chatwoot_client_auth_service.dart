@@ -20,7 +20,8 @@ abstract class ChatwootClientAuthService {
       String inboxIdentifier, ChatwootUser? user);
 
   Future<ChatwootConversation> createNewConversation(
-      String inboxIdentifier, String contactIdentifier);
+      String inboxIdentifier, String contactIdentifier,
+      {Map<String, dynamic>? customAttributes});
 }
 
 /// Default Implementation for [ChatwootClientAuthService]
@@ -53,10 +54,14 @@ class ChatwootClientAuthServiceImpl extends ChatwootClientAuthService {
   ///Creates a new conversation for inbox with [inboxIdentifier] and contact with source id [contactIdentifier]
   @override
   Future<ChatwootConversation> createNewConversation(
-      String inboxIdentifier, String contactIdentifier) async {
+      String inboxIdentifier, String contactIdentifier,
+      {Map<String, dynamic>? customAttributes}) async {
     try {
       final createResponse = await dio.post(
-          "/public/api/v1/inboxes/$inboxIdentifier/contacts/$contactIdentifier/conversations");
+          "/public/api/v1/inboxes/$inboxIdentifier/contacts/$contactIdentifier/conversations",
+          data: customAttributes == null
+              ? null
+              : {"custom_attributes": customAttributes});
       if ((createResponse.statusCode ?? 0).isBetween(199, 300)) {
         //creating contact successful continue with request
         final newConversation =
@@ -68,8 +73,8 @@ class ChatwootClientAuthServiceImpl extends ChatwootClientAuthService {
             ChatwootClientExceptionType.CREATE_CONVERSATION_FAILED);
       }
     } on DioException catch (e) {
-      throw ChatwootClientException(
-          e.message ?? '', ChatwootClientExceptionType.CREATE_CONVERSATION_FAILED);
+      throw ChatwootClientException(e.message ?? '',
+          ChatwootClientExceptionType.CREATE_CONVERSATION_FAILED);
     }
   }
 }

@@ -3,6 +3,8 @@ const WOOT_PREFIX = 'chatwoot-widget:';
 class PostMessageEvents {
   static const SET_LOCALE = 'set-locale';
   static const SET_CUSTOM_ATTRIBUTES = 'set-custom-attributes';
+  static const SET_CONVERSATION_CUSTOM_ATTRIBUTES =
+      'set-conversation-custom-attributes';
   static const SET_USER = 'set-user';
 }
 

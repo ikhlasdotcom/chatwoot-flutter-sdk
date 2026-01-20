@@ -40,6 +40,13 @@ class Webview extends StatefulWidget {
       ChatwootUser? user,
       String locale = "en",
       customAttributes,
+      dynamic conversationCustomAttributes,
+      bool resetConversation = false,
+      String? conversationToken,
+      bool persistConversationToken = true,
+      void Function(String)? onAuthToken,
+      void Function(String authToken, int? conversationId)?
+          onConversationLoaded,
       this.closeWidget,
       this.onAttachFile,
       this.onLoadStarted,
@@ -48,10 +55,28 @@ class Webview extends StatefulWidget {
       : super(key: key) {
     widgetUrl =
         "${baseUrl}/widget?website_token=${websiteToken}&locale=${locale}";
+    _baseUri = Uri.parse(baseUrl);
 
     injectedJavaScript = generateScripts(
-        user: user, locale: locale, customAttributes: customAttributes);
+        user: user,
+        locale: locale,
+        customAttributes: customAttributes,
+        conversationCustomAttributes: conversationCustomAttributes);
+
+    _resetConversation = resetConversation;
+    _conversationToken = conversationToken;
+    _persistConversationToken = persistConversationToken;
+    _onAuthToken = onAuthToken;
+    _onConversationLoaded = onConversationLoaded;
   }
+
+  late final bool _resetConversation;
+  late final String? _conversationToken;
+  late final bool _persistConversationToken;
+  late final void Function(String)? _onAuthToken;
+  late final void Function(String authToken, int? conversationId)?
+      _onConversationLoaded;
+  late final Uri _baseUri;
 
   @override
   _WebviewState createState() => _WebviewState();
@@ -64,7 +89,12 @@ class _WebviewState extends State<Webview> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       String webviewUrl = widget.widgetUrl;
-      final cwCookie = await StoreHelper.getCookie();
+      if (widget._resetConversation) {
+        await StoreHelper.clearCookie();
+      }
+
+      final cwCookie =
+          widget._conversationToken ?? await StoreHelper.getCookie();
       if (cwCookie.isNotEmpty) {
         webviewUrl = "${webviewUrl}&cw_conversation=${cwCookie}";
       }
@@ -86,8 +116,11 @@ class _WebviewState extends State<Webview> {
               },
               onWebResourceError: (WebResourceError error) {},
               onNavigationRequest: (NavigationRequest request) {
-                _goToUrl(request.url);
-                return NavigationDecision.prevent;
+                if (_shouldOpenExternally(request.url)) {
+                  _goToUrl(request.url);
+                  return NavigationDecision.prevent;
+                }
+                return NavigationDecision.navigate;
               },
             ),
           )
@@ -100,8 +133,20 @@ class _WebviewState extends State<Webview> {
               final eventType = parsedMessage["event"];
               final type = parsedMessage["type"];
               if (eventType == 'loaded') {
-                final authToken = parsedMessage["config"]["authToken"];
-                StoreHelper.storeCookie(authToken);
+                final config = parsedMessage["config"];
+                final authToken = config["authToken"];
+                final conversationIdRaw =
+                    config["conversationId"] ?? config["conversation_id"];
+                final conversationId = conversationIdRaw != null
+                    ? int.tryParse(conversationIdRaw.toString())
+                    : null;
+                print(
+                    "Chatwoot loaded - authToken: $authToken, conversationId: $conversationId");
+                if (widget._persistConversationToken) {
+                  StoreHelper.storeCookie(authToken);
+                }
+                widget._onAuthToken?.call(authToken);
+                widget._onConversationLoaded?.call(authToken, conversationId);
                 _controller?.runJavaScript(widget.injectedJavaScript);
               }
               if (type == 'close-widget') {
@@ -130,5 +175,28 @@ class _WebviewState extends State<Webview> {
 
   _goToUrl(String url) {
     launchUrl(Uri.parse(url));
+  }
+
+  bool _shouldOpenExternally(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return true;
+    }
+    if (uri.scheme != 'http' && uri.scheme != 'https') {
+      return true;
+    }
+
+    final baseHost = widget._baseUri.host.toLowerCase();
+    final targetHost = uri.host.toLowerCase();
+    if (baseHost.isEmpty || targetHost.isEmpty) {
+      return true;
+    }
+
+    // Allow navigation within the Chatwoot host (including subdomains)
+    if (targetHost == baseHost || targetHost.endsWith('.$baseHost')) {
+      return false;
+    }
+
+    return true;
   }
 }

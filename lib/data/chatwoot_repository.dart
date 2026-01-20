@@ -4,6 +4,7 @@ import 'dart:core';
 
 import 'package:chatwoot_sdk/chatwoot_callbacks.dart';
 import 'package:chatwoot_sdk/chatwoot_client.dart';
+import 'package:chatwoot_sdk/data/local/entity/chatwoot_conversation.dart';
 import 'package:chatwoot_sdk/data/local/entity/chatwoot_user.dart';
 import 'package:chatwoot_sdk/data/local/local_storage.dart';
 import 'package:chatwoot_sdk/data/remote/chatwoot_client_exception.dart';
@@ -11,6 +12,7 @@ import 'package:chatwoot_sdk/data/remote/requests/chatwoot_action_data.dart';
 import 'package:chatwoot_sdk/data/remote/requests/chatwoot_new_message_request.dart';
 import 'package:chatwoot_sdk/data/remote/responses/chatwoot_event.dart';
 import 'package:chatwoot_sdk/data/remote/service/chatwoot_client_service.dart';
+import 'package:chatwoot_sdk/chatwoot_parameters.dart';
 import 'package:flutter/material.dart';
 
 /// Handles interactions between chatwoot client api service[clientService] and
@@ -25,9 +27,12 @@ abstract class ChatwootRepository {
   final LocalStorage localStorage;
   @protected
   ChatwootCallbacks callbacks;
+  @protected
+  final ChatwootParameters params;
   List<StreamSubscription> _subscriptions = [];
 
-  ChatwootRepository(this.clientService, this.localStorage, this.callbacks);
+  ChatwootRepository(
+      this.params, this.clientService, this.localStorage, this.callbacks);
 
   Future<void> initialize(ChatwootUser? user);
 
@@ -52,10 +57,11 @@ class ChatwootRepositoryImpl extends ChatwootRepository {
   Timer? _presenceResetTimer;
 
   ChatwootRepositoryImpl(
-      {required ChatwootClientService clientService,
+      {required ChatwootParameters params,
+      required ChatwootClientService clientService,
       required LocalStorage localStorage,
       required ChatwootCallbacks streamCallbacks})
-      : super(clientService, localStorage, streamCallbacks);
+      : super(params, clientService, localStorage, streamCallbacks);
 
   /// Fetches persisted messages.
   ///
@@ -97,13 +103,14 @@ class ChatwootRepositoryImpl extends ChatwootRepository {
       //refresh conversation
       final conversations = await clientService.getConversations();
       final persistedConversation =
-          localStorage.conversationDao.getConversation()!;
-      final refreshedConversation = conversations.firstWhere(
-          (element) => element.id == persistedConversation.id,
-          orElse: () =>
-              persistedConversation //highly unlikely orElse will be called but still added it just in case
-          );
-      localStorage.conversationDao.saveConversation(refreshedConversation);
+          localStorage.conversationDao.getConversation();
+      final refreshedConversation = _pickConversation(
+          conversations: conversations,
+          persistedConversation: persistedConversation,
+          targetConversationId: params.conversationId);
+      if (refreshedConversation != null) {
+        localStorage.conversationDao.saveConversation(refreshedConversation);
+      }
     } on ChatwootClientException catch (e) {
       callbacks.onError?.call(e);
     }
@@ -243,5 +250,38 @@ class ChatwootRepositoryImpl extends ChatwootRepository {
       callbacks.onConversationIsOffline?.call();
       _presenceResetTimer?.cancel();
     });
+  }
+
+  ChatwootConversation? _pickConversation(
+      {required List<ChatwootConversation> conversations,
+      ChatwootConversation? persistedConversation,
+      int? targetConversationId}) {
+    if (targetConversationId != null) {
+      final matched =
+          _findConversationById(conversations, targetConversationId);
+      if (matched != null) {
+        return matched;
+      }
+    }
+
+    if (persistedConversation != null) {
+      final matched =
+          _findConversationById(conversations, persistedConversation.id);
+      if (matched != null) {
+        return matched;
+      }
+    }
+
+    return conversations.isNotEmpty ? conversations.first : null;
+  }
+
+  ChatwootConversation? _findConversationById(
+      List<ChatwootConversation> conversations, int id) {
+    for (final conversation in conversations) {
+      if (conversation.id == id) {
+        return conversation;
+      }
+    }
+    return null;
   }
 }

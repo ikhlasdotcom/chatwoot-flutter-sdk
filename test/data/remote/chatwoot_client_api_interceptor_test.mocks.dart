@@ -260,6 +260,7 @@ class MockChatwootClientAuthService extends _i1.Mock
   _i7.Future<_i5.ChatwootConversation> createNewConversation(
     String? inboxIdentifier,
     String? contactIdentifier,
+    {Map<String, dynamic>? customAttributes},
   ) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -268,6 +269,7 @@ class MockChatwootClientAuthService extends _i1.Mock
             inboxIdentifier,
             contactIdentifier,
           ],
+          {#customAttributes: customAttributes},
         ),
         returnValue: _i7.Future<_i5.ChatwootConversation>.value(
             _FakeChatwootConversation_3(
@@ -278,6 +280,7 @@ class MockChatwootClientAuthService extends _i1.Mock
               inboxIdentifier,
               contactIdentifier,
             ],
+            {#customAttributes: customAttributes},
           ),
         )),
       ) as _i7.Future<_i5.ChatwootConversation>);
