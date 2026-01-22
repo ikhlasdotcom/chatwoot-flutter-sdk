@@ -24,12 +24,34 @@ String getMessage(String data) {
   return data.replaceAll(WOOT_PREFIX, '');
 }
 
+String generateConversationMetadataScript(
+    {dynamic conversationCustomAttributes, String? conversationLabel}) {
+  String script = '';
+  if (conversationCustomAttributes != null) {
+    final conversationAttributeObject = {
+      "event": PostMessageEvents.SET_CONVERSATION_CUSTOM_ATTRIBUTES,
+      "customAttributes": conversationCustomAttributes,
+    };
+    script += createWootPostMessage(conversationAttributeObject);
+  }
+  if (conversationLabel != null && conversationLabel.isNotEmpty) {
+    final conversationLabelObject = {
+      "event": PostMessageEvents.SET_LABEL,
+      "label": conversationLabel,
+    };
+    script += createWootPostMessage(conversationLabelObject);
+  }
+  return script;
+}
+
 String generateScripts(
     {ChatwootUser? user,
     String? locale,
     dynamic customAttributes,
-    dynamic conversationCustomAttributes}) {
+    dynamic conversationCustomAttributes,
+    String? conversationLabel}) {
   String script = '';
+
   if (user != null) {
     final userObject = {
       "event": PostMessageEvents.SET_USER,
@@ -52,29 +74,71 @@ String generateScripts(
     };
     script += createWootPostMessage(attributeObject);
   }
-  if (conversationCustomAttributes != null) {
-    final conversationAttributeObject = {
-      "event": PostMessageEvents.SET_CONVERSATION_CUSTOM_ATTRIBUTES,
-      "customAttributes": conversationCustomAttributes,
-    };
-    final conversationScript =
-        createWootPostMessage(conversationAttributeObject);
-    // Send conversation attributes after the first outbound message request completes
-    script += """
+  script += generateConversationMetadataScript(
+    conversationCustomAttributes: conversationCustomAttributes,
+    conversationLabel: conversationLabel,
+  );
+  // Intercept attachment links (blob/download/target=_blank) and forward to Flutter
+  script += """
 (function(){
-  if (window.__cw_conversation_attrs_hooked) { return; }
-  window.__cw_conversation_attrs_hooked = true;
-  var fired = false;
-  function sendOnce() {
-    if (fired) { return; }
-    fired = true;
-    $conversationScript
+  if (window.__cw_attachment_click_hooked) { return; }
+  window.__cw_attachment_click_hooked = true;
+  function postMessage(obj){
+    try {
+      var msg = '$WOOT_PREFIX' + JSON.stringify(obj);
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(msg);
+      } else if (window.postMessage) {
+        window.postMessage(msg);
+      }
+    } catch (e) {}
+  }
+  document.addEventListener('click', function(e){
+    var el = e.target;
+    while (el && el.tagName && el.tagName.toLowerCase() !== 'a') {
+      el = el.parentElement;
+    }
+    if (!el || !el.getAttribute) { return; }
+    var href = el.getAttribute('href');
+    if (!href) { return; }
+    var target = (el.getAttribute('target') || '').toLowerCase();
+    var isBlob = href.indexOf('blob:') === 0;
+    var isDownload = el.hasAttribute('download');
+    var isBlank = target === '_blank';
+    if (isBlob || isDownload || isBlank) {
+      e.preventDefault();
+      postMessage({ event: 'open-url', url: href });
+    }
+  }, true);
+})();
+""";
+  // Notify Flutter when the first outbound message request completes
+  script += """
+(function(){
+  if (window.__cw_message_posted_hooked) { return; }
+  window.__cw_message_posted_hooked = true;
+  function postMessage(obj){
+    try {
+      var msg = '$WOOT_PREFIX' + JSON.stringify(obj);
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(msg);
+      } else if (window.postMessage) {
+        window.postMessage(msg);
+      }
+    } catch (e) {}
+  }
+  function notifyOnce(){
+    if (window.__cw_message_posted_once) { return; }
+    window.__cw_message_posted_once = true;
+    postMessage({ event: 'message-posted' });
+    if (window.__cw_apply_attrs_apply) {
+      window.__cw_apply_attrs_apply();
+    }
   }
   function isMessagePost(url, method) {
     var u = (url || '').toString();
     var m = (method || '').toString().toUpperCase();
     if (m !== 'POST') { return false; }
-    // Chatwoot widget endpoints vary; match broadly on message/conversation posts
     if (u.indexOf('/messages') !== -1) { return true; }
     if (u.indexOf('/conversations') !== -1) { return true; }
     return false;
@@ -87,7 +151,7 @@ String generateScripts(
         var method = init && init.method ? init.method : (input && input.method) ? input.method : 'GET';
         if (isMessagePost(url, method)) {
           return originalFetch.apply(this, arguments).then(function(resp){
-            sendOnce();
+            notifyOnce();
             return resp;
           });
         }
@@ -107,7 +171,7 @@ String generateScripts(
       try {
         if (isMessagePost(this.__cw_url, this.__cw_method)) {
           this.addEventListener('load', function(){
-            sendOnce();
+            notifyOnce();
           });
         }
       } catch (e) {}
@@ -116,7 +180,6 @@ String generateScripts(
   }
 })();
 """;
-  }
   return script;
 }
 

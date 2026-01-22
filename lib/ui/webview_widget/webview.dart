@@ -41,12 +41,16 @@ class Webview extends StatefulWidget {
       String locale = "en",
       customAttributes,
       dynamic conversationCustomAttributes,
+      String? conversationLabel,
       bool resetConversation = false,
       String? conversationToken,
       bool persistConversationToken = true,
+      ChatwootWidgetController? controller,
+      ChatwootCallbacks? callbacks,
       void Function(String)? onAuthToken,
       void Function(String authToken, int? conversationId)?
           onConversationLoaded,
+      void Function(Map<String, dynamic> message)? onMessage,
       this.closeWidget,
       this.onAttachFile,
       this.onLoadStarted,
@@ -61,13 +65,17 @@ class Webview extends StatefulWidget {
         user: user,
         locale: locale,
         customAttributes: customAttributes,
-        conversationCustomAttributes: conversationCustomAttributes);
+        conversationCustomAttributes: conversationCustomAttributes,
+        conversationLabel: conversationLabel);
 
     _resetConversation = resetConversation;
     _conversationToken = conversationToken;
     _persistConversationToken = persistConversationToken;
     _onAuthToken = onAuthToken;
     _onConversationLoaded = onConversationLoaded;
+    _onMessage = onMessage;
+    _controllerBridge = controller;
+    _callbacks = callbacks;
   }
 
   late final bool _resetConversation;
@@ -76,6 +84,9 @@ class Webview extends StatefulWidget {
   late final void Function(String)? _onAuthToken;
   late final void Function(String authToken, int? conversationId)?
       _onConversationLoaded;
+  late final void Function(Map<String, dynamic> message)? _onMessage;
+  late final ChatwootWidgetController? _controllerBridge;
+  late final ChatwootCallbacks? _callbacks;
   late final Uri _baseUri;
 
   @override
@@ -84,6 +95,24 @@ class Webview extends StatefulWidget {
 
 class _WebviewState extends State<Webview> {
   WebViewController? _controller;
+
+  void _handleWidgetMessage(Map<String, dynamic> data) {
+    try {
+      final message = ChatwootMessage.fromJson(data);
+      if (data['event'] == 'message.updated') {
+        widget._callbacks?.onMessageUpdated?.call(message);
+        return;
+      }
+      if (message.isMine) {
+        widget._callbacks?.onMessageSent?.call(message, '');
+      } else {
+        widget._callbacks?.onMessageReceived?.call(message);
+      }
+    } catch (_) {
+      // ignore parse failures
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -126,12 +155,18 @@ class _WebviewState extends State<Webview> {
           )
           ..addJavaScriptChannel("ReactNativeWebView",
               onMessageReceived: (JavaScriptMessage jsMessage) {
-            print("Chatwoot message received: ${jsMessage.message}");
+            if (!jsMessage.message.contains('"event":"message-posted"')) {
+              print("Chatwoot message received: ${jsMessage.message}");
+            }
             final message = getMessage(jsMessage.message);
             if (isJsonString(message)) {
               final parsedMessage = jsonDecode(message);
               final eventType = parsedMessage["event"];
               final type = parsedMessage["type"];
+              if (eventType == 'onEvent') {
+                print(
+                    "Chatwoot onEvent received: ${parsedMessage["eventIdentifier"]}");
+              }
               if (eventType == 'loaded') {
                 final config = parsedMessage["config"];
                 final authToken = config["authToken"];
@@ -149,12 +184,36 @@ class _WebviewState extends State<Webview> {
                 widget._onConversationLoaded?.call(authToken, conversationId);
                 _controller?.runJavaScript(widget.injectedJavaScript);
               }
+              if (eventType == 'onEvent' &&
+                  parsedMessage["eventIdentifier"] == 'chatwoot:on-message') {
+                final data = parsedMessage["data"];
+                print("Chatwoot on-message payload: $data");
+                if (data is Map<String, dynamic>) {
+                  _handleWidgetMessage(data);
+                  widget._onMessage?.call(data);
+                } else if (data != null) {
+                  final normalized = Map<String, dynamic>.from(data as dynamic);
+                  _handleWidgetMessage(normalized);
+                  widget._onMessage?.call(normalized);
+                }
+              }
+              if (eventType == 'message-posted') {
+                // Ignore widget message-posted events; they can fire on load.
+              }
+              if (eventType == 'open-url') {
+                final url = parsedMessage["url"]?.toString();
+                if (url != null && url.isNotEmpty) {
+                  _goToUrl(url);
+                }
+              }
               if (type == 'close-widget') {
                 widget.closeWidget?.call();
               }
             }
           })
           ..loadRequest(Uri.parse(webviewUrl));
+
+        widget._controllerBridge?.attach(_controller!);
 
         if (Platform.isAndroid && widget.onAttachFile != null) {
           final androidController = _controller!.platform
@@ -171,6 +230,12 @@ class _WebviewState extends State<Webview> {
     return _controller != null
         ? WebViewWidget(controller: _controller!)
         : SizedBox();
+  }
+
+  @override
+  void dispose() {
+    widget._controllerBridge?.detach();
+    super.dispose();
   }
 
   _goToUrl(String url) {

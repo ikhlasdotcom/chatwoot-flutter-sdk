@@ -5,6 +5,8 @@ class PostMessageEvents {
   static const SET_CUSTOM_ATTRIBUTES = 'set-custom-attributes';
   static const SET_CONVERSATION_CUSTOM_ATTRIBUTES =
       'set-conversation-custom-attributes';
+  static const SET_LABEL = 'set-label';
+  static const REMOVE_LABEL = 'remove-label';
   static const SET_USER = 'set-user';
 }
 

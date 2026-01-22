@@ -1,4 +1,6 @@
 import 'package:chatwoot_sdk/data/local/entity/chatwoot_user.dart';
+import 'package:chatwoot_sdk/chatwoot_callbacks.dart';
+import 'package:chatwoot_sdk/ui/webview_widget/chatwoot_widget_controller.dart';
 import 'package:chatwoot_sdk/ui/webview_widget/webview.dart';
 import 'package:flutter/material.dart';
 
@@ -51,8 +53,20 @@ class ChatwootWidget extends StatefulWidget {
   final void Function(String authToken, int? conversationId)?
       onConversationLoaded;
 
+  /// Callback when a widget message event is received.
+  final void Function(Map<String, dynamic> message)? onMessage;
+
   /// Conversation-level custom attributes to set on load.
   final dynamic conversationCustomAttributes;
+
+  /// Conversation label to set on first message.
+  final String? conversationLabel;
+
+  /// Controller to interact with the active widget instance.
+  final ChatwootWidgetController? controller;
+
+  /// Optional callbacks mapped from widget events.
+  final ChatwootCallbacks? callbacks;
   ChatwootWidget(
       {Key? key,
       required this.websiteToken,
@@ -61,6 +75,7 @@ class ChatwootWidget extends StatefulWidget {
       this.locale = "en",
       this.customAttributes,
       this.conversationCustomAttributes,
+      this.conversationLabel,
       this.closeWidget,
       this.onAttachFile,
       this.onLoadStarted,
@@ -70,7 +85,10 @@ class ChatwootWidget extends StatefulWidget {
       this.conversationToken,
       this.persistConversationToken = true,
       this.onAuthToken,
-      this.onConversationLoaded})
+      this.onConversationLoaded,
+      this.onMessage,
+      this.controller,
+      this.callbacks})
       : super(key: key);
 
   @override
@@ -92,12 +110,16 @@ class _ChatwootWidgetState extends State<ChatwootWidget> {
       locale: widget.locale,
       customAttributes: widget.customAttributes,
       conversationCustomAttributes: widget.conversationCustomAttributes,
+      conversationLabel: widget.conversationLabel,
+      controller: widget.controller,
       closeWidget: widget.closeWidget,
       resetConversation: widget.resetConversation,
       conversationToken: widget.conversationToken,
       persistConversationToken: widget.persistConversationToken,
       onAuthToken: widget.onAuthToken,
       onConversationLoaded: widget.onConversationLoaded,
+      onMessage: widget.onMessage,
+      callbacks: widget.callbacks,
       onAttachFile: widget.onAttachFile,
       onLoadStarted: widget.onLoadStarted,
       onLoadCompleted: widget.onLoadCompleted,
