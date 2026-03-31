@@ -25,7 +25,8 @@ class ChatwootWidget extends StatefulWidget {
   ///Additional information about the customer
   final customAttributes;
 
-  ///Widget Attachment event. Currently supported only on Android devices
+  /// Custom file picker for Android. If not provided, uses default file_picker.
+  /// Return a list of file URIs. Only used on Android devices.
   final Future<List<String>> Function()? onAttachFile;
 
   ///Widget Load started event

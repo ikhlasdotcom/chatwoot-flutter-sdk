@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:chatwoot_sdk/chatwoot_sdk.dart';
 import 'package:chatwoot_sdk/ui/webview_widget/utils.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -215,14 +216,66 @@ class _WebviewState extends State<Webview> {
 
         widget._controllerBridge?.attach(_controller!);
 
-        if (Platform.isAndroid && widget.onAttachFile != null) {
+        if (Platform.isAndroid) {
           final androidController = _controller!.platform
               as webview_flutter_android.AndroidWebViewController;
-          androidController
-              .setOnShowFileSelector((_) => widget.onAttachFile!.call());
+          androidController.setOnShowFileSelector((params) async {
+            // Use custom callback if provided, otherwise use default file picker
+            if (widget.onAttachFile != null) {
+              return widget.onAttachFile!.call();
+            }
+            return _defaultFilePicker(params);
+          });
         }
       });
     });
+  }
+
+  /// Default file picker implementation for Android when onAttachFile is not provided.
+  /// Uses file_picker package to handle all file types based on WebView's accept types.
+  Future<List<String>> _defaultFilePicker(
+      webview_flutter_android.FileSelectorParams params) async {
+    try {
+      // Determine file type based on accept types from WebView
+      FileType fileType = FileType.any;
+      List<String>? allowedExtensions;
+
+      final acceptTypes = params.acceptTypes;
+      if (acceptTypes.isNotEmpty) {
+        final firstType = acceptTypes.first.toLowerCase();
+        if (firstType.startsWith('image/')) {
+          fileType = FileType.image;
+        } else if (firstType.startsWith('video/')) {
+          fileType = FileType.video;
+        } else if (firstType.startsWith('audio/')) {
+          fileType = FileType.audio;
+        } else if (firstType == 'application/pdf') {
+          fileType = FileType.custom;
+          allowedExtensions = ['pdf'];
+        }
+        // For other types or mixed types, use FileType.any
+      }
+
+      final result = await FilePicker.platform.pickFiles(
+        type: fileType,
+        allowedExtensions: allowedExtensions,
+        allowMultiple: params.mode ==
+            webview_flutter_android.FileSelectorMode.openMultiple,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return [];
+      }
+
+      // Return file URIs
+      return result.files
+          .where((file) => file.path != null)
+          .map((file) => File(file.path!).uri.toString())
+          .toList();
+    } catch (e) {
+      print('Chatwoot file picker error: $e');
+      return [];
+    }
   }
 
   @override

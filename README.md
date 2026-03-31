@@ -143,10 +143,12 @@ Horray! You're done.
 | locale           | en      | String                          | User locale                                                                                            |
 | closeWidget      | -       | void Function()                 | widget close event                                                                                     |
 | customAttributes | -       | dynamic                         | Additional information about the customer                                                              |
-| onAttachFile     | -       | Future<List<String>> Function() | Widget Attachment event. Should return a list of File Uris Currently supported only on Android devices |
+| onAttachFile     | -       | Future<List<String>> Function() | Custom file picker for Android. If not provided, uses default file_picker implementation. Returns list of file URIs. |
 | onLoadStarted    | -       | void Function()                 | Widget load start event                                                                                |
 | onLoadProgress   | -       | void Function(int)              | Widget Load progress event                                                                             |
 | onLoadCompleted  | -       | void Function()                 | Widget Load completed event                                                                            |
+
+**Note on Android File Attachments:** On Android, the WebView file chooser is handled by the SDK. If you don't provide `onAttachFile`, the SDK uses the built-in `file_picker` package which supports images, videos, audio, PDFs and all file types. If you need custom behavior (e.g., camera capture, specific MIME types), provide your own `onAttachFile` callback.
 
 ### b. Using Chatwoot Client
 * Create an Api inbox in Chatwoot. Refer to [Create API Channel](https://www.chatwoot.com/docs/product/channels/api/create-channel) document.
