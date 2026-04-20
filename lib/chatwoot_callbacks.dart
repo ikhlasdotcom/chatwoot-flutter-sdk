@@ -70,7 +70,7 @@ class ChatwootCallbacks {
   void Function(ChatwootClientException)? onError;
 
   /// Triggered when user open the conversation screen, and the conversation is loaded with the persisted conversation token
-  void Function()? onConversationLoaded;
+  void Function()? onConversationPageOpen;
 
   ChatwootCallbacks({
     this.onWelcome,
@@ -88,6 +88,6 @@ class ChatwootCallbacks {
     this.onConversationIsOffline,
     this.onConversationResolved,
     this.onError,
-    this.onConversationLoaded,
+    this.onConversationPageOpen,
   });
 }

@@ -160,7 +160,7 @@ class _WebviewState extends State<Webview> {
               if (!jsMessage.message.contains('"event":"message-posted"')) {
                 print("Chatwoot message received: ${jsMessage.message}");
               } else {
-                widget._callbacks?.onConversationLoaded?.call();
+                widget._callbacks?.onConversationPageOpen?.call();
               }
               final message = getMessage(jsMessage.message);
               if (isJsonString(message)) {
