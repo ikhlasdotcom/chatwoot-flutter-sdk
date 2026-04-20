@@ -34,40 +34,40 @@ class Webview extends StatefulWidget {
   /// See [ChatwootWidget.onLoadCompleted]
   final void Function()? onLoadCompleted;
 
-  Webview(
-      {Key? key,
-      required String websiteToken,
-      required String baseUrl,
-      ChatwootUser? user,
-      String locale = "en",
-      customAttributes,
-      dynamic conversationCustomAttributes,
-      String? conversationLabel,
-      bool resetConversation = false,
-      String? conversationToken,
-      bool persistConversationToken = true,
-      ChatwootWidgetController? controller,
-      ChatwootCallbacks? callbacks,
-      void Function(String)? onAuthToken,
-      void Function(String authToken, int? conversationId)?
-          onConversationLoaded,
-      void Function(Map<String, dynamic> message)? onMessage,
-      this.closeWidget,
-      this.onAttachFile,
-      this.onLoadStarted,
-      this.onLoadProgress,
-      this.onLoadCompleted})
-      : super(key: key) {
+  Webview({
+    Key? key,
+    required String websiteToken,
+    required String baseUrl,
+    ChatwootUser? user,
+    String locale = "en",
+    customAttributes,
+    dynamic conversationCustomAttributes,
+    String? conversationLabel,
+    bool resetConversation = false,
+    String? conversationToken,
+    bool persistConversationToken = true,
+    ChatwootWidgetController? controller,
+    ChatwootCallbacks? callbacks,
+    void Function(String)? onAuthToken,
+    void Function(String authToken, int? conversationId)? onConversationLoaded,
+    void Function(Map<String, dynamic> message)? onMessage,
+    this.closeWidget,
+    this.onAttachFile,
+    this.onLoadStarted,
+    this.onLoadProgress,
+    this.onLoadCompleted,
+  }) : super(key: key) {
     widgetUrl =
         "${baseUrl}/widget?website_token=${websiteToken}&locale=${locale}";
     _baseUri = Uri.parse(baseUrl);
 
     injectedJavaScript = generateScripts(
-        user: user,
-        locale: locale,
-        customAttributes: customAttributes,
-        conversationCustomAttributes: conversationCustomAttributes,
-        conversationLabel: conversationLabel);
+      user: user,
+      locale: locale,
+      customAttributes: customAttributes,
+      conversationCustomAttributes: conversationCustomAttributes,
+      conversationLabel: conversationLabel,
+    );
 
     _resetConversation = resetConversation;
     _conversationToken = conversationToken;
@@ -84,7 +84,7 @@ class Webview extends StatefulWidget {
   late final bool _persistConversationToken;
   late final void Function(String)? _onAuthToken;
   late final void Function(String authToken, int? conversationId)?
-      _onConversationLoaded;
+  _onConversationLoaded;
   late final void Function(Map<String, dynamic> message)? _onMessage;
   late final ChatwootWidgetController? _controllerBridge;
   late final ChatwootCallbacks? _callbacks;
@@ -154,71 +154,80 @@ class _WebviewState extends State<Webview> {
               },
             ),
           )
-          ..addJavaScriptChannel("ReactNativeWebView",
-              onMessageReceived: (JavaScriptMessage jsMessage) {
-            if (!jsMessage.message.contains('"event":"message-posted"')) {
-              print("Chatwoot message received: ${jsMessage.message}");
-            }
-            final message = getMessage(jsMessage.message);
-            if (isJsonString(message)) {
-              final parsedMessage = jsonDecode(message);
-              final eventType = parsedMessage["event"];
-              final type = parsedMessage["type"];
-              if (eventType == 'onEvent') {
-                print(
-                    "Chatwoot onEvent received: ${parsedMessage["eventIdentifier"]}");
+          ..addJavaScriptChannel(
+            "ReactNativeWebView",
+            onMessageReceived: (JavaScriptMessage jsMessage) {
+              if (!jsMessage.message.contains('"event":"message-posted"')) {
+                print("Chatwoot message received: ${jsMessage.message}");
+              } else {
+                widget._callbacks?.onConversationLoaded?.call();
               }
-              if (eventType == 'loaded') {
-                final config = parsedMessage["config"];
-                final authToken = config["authToken"];
-                final conversationIdRaw =
-                    config["conversationId"] ?? config["conversation_id"];
-                final conversationId = conversationIdRaw != null
-                    ? int.tryParse(conversationIdRaw.toString())
-                    : null;
-                print(
-                    "Chatwoot loaded - authToken: $authToken, conversationId: $conversationId");
-                if (widget._persistConversationToken) {
-                  StoreHelper.storeCookie(authToken);
+              final message = getMessage(jsMessage.message);
+              if (isJsonString(message)) {
+                final parsedMessage = jsonDecode(message);
+                final eventType = parsedMessage["event"];
+                final type = parsedMessage["type"];
+                if (eventType == 'onEvent') {
+                  print(
+                    "Chatwoot onEvent received: ${parsedMessage["eventIdentifier"]}",
+                  );
                 }
-                widget._onAuthToken?.call(authToken);
-                widget._onConversationLoaded?.call(authToken, conversationId);
-                _controller?.runJavaScript(widget.injectedJavaScript);
-              }
-              if (eventType == 'onEvent' &&
-                  parsedMessage["eventIdentifier"] == 'chatwoot:on-message') {
-                final data = parsedMessage["data"];
-                print("Chatwoot on-message payload: $data");
-                if (data is Map<String, dynamic>) {
-                  _handleWidgetMessage(data);
-                  widget._onMessage?.call(data);
-                } else if (data != null) {
-                  final normalized = Map<String, dynamic>.from(data as dynamic);
-                  _handleWidgetMessage(normalized);
-                  widget._onMessage?.call(normalized);
+                if (eventType == 'loaded') {
+                  final config = parsedMessage["config"];
+                  final authToken = config["authToken"];
+                  final conversationIdRaw =
+                      config["conversationId"] ?? config["conversation_id"];
+                  final conversationId = conversationIdRaw != null
+                      ? int.tryParse(conversationIdRaw.toString())
+                      : null;
+                  print(
+                    "Chatwoot loaded - authToken: $authToken, conversationId: $conversationId",
+                  );
+                  if (widget._persistConversationToken) {
+                    StoreHelper.storeCookie(authToken);
+                  }
+                  widget._onAuthToken?.call(authToken);
+                  widget._onConversationLoaded?.call(authToken, conversationId);
+                  _controller?.runJavaScript(widget.injectedJavaScript);
+                }
+                if (eventType == 'onEvent' &&
+                    parsedMessage["eventIdentifier"] == 'chatwoot:on-message') {
+                  final data = parsedMessage["data"];
+                  print("Chatwoot on-message payload: $data");
+                  if (data is Map<String, dynamic>) {
+                    _handleWidgetMessage(data);
+                    widget._onMessage?.call(data);
+                  } else if (data != null) {
+                    final normalized = Map<String, dynamic>.from(
+                      data as dynamic,
+                    );
+                    _handleWidgetMessage(normalized);
+                    widget._onMessage?.call(normalized);
+                  }
+                }
+                if (eventType == 'message-posted') {
+                  // Ignore widget message-posted events; they can fire on load.
+                }
+                if (eventType == 'open-url') {
+                  final url = parsedMessage["url"]?.toString();
+                  if (url != null && url.isNotEmpty) {
+                    _goToUrl(url);
+                  }
+                }
+                if (type == 'close-widget') {
+                  widget.closeWidget?.call();
                 }
               }
-              if (eventType == 'message-posted') {
-                // Ignore widget message-posted events; they can fire on load.
-              }
-              if (eventType == 'open-url') {
-                final url = parsedMessage["url"]?.toString();
-                if (url != null && url.isNotEmpty) {
-                  _goToUrl(url);
-                }
-              }
-              if (type == 'close-widget') {
-                widget.closeWidget?.call();
-              }
-            }
-          })
+            },
+          )
           ..loadRequest(Uri.parse(webviewUrl));
 
         widget._controllerBridge?.attach(_controller!);
 
         if (Platform.isAndroid) {
-          final androidController = _controller!.platform
-              as webview_flutter_android.AndroidWebViewController;
+          final androidController =
+              _controller!.platform
+                  as webview_flutter_android.AndroidWebViewController;
           androidController.setOnShowFileSelector((params) async {
             // Use custom callback if provided, otherwise use default file picker
             if (widget.onAttachFile != null) {
@@ -234,7 +243,8 @@ class _WebviewState extends State<Webview> {
   /// Default file picker implementation for Android when onAttachFile is not provided.
   /// Uses file_picker package to handle all file types based on WebView's accept types.
   Future<List<String>> _defaultFilePicker(
-      webview_flutter_android.FileSelectorParams params) async {
+    webview_flutter_android.FileSelectorParams params,
+  ) async {
     try {
       // Determine file type based on accept types from WebView
       FileType fileType = FileType.any;
@@ -259,7 +269,8 @@ class _WebviewState extends State<Webview> {
       final result = await FilePicker.platform.pickFiles(
         type: fileType,
         allowedExtensions: allowedExtensions,
-        allowMultiple: params.mode ==
+        allowMultiple:
+            params.mode ==
             webview_flutter_android.FileSelectorMode.openMultiple,
       );
 
